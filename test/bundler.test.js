@@ -11,6 +11,7 @@ let contractsFramework;
 let sf;
 let sfUnlockBundler;
 let superAppFactory;
+let disablePurchaseHook;
 let dai;
 let daix;
 
@@ -47,22 +48,35 @@ before(async function () {
     // SF Addresses: https://docs.superfluid.finance/superfluid/developers/networks
     // Unlock Addresses: https://unlock-protocol.gitbook.io/unlock/developers/smart-contracts
     sfUnlockBundler = await sfUnlockBundlerDeployer.connect(owner).deploy(
-        "0x567c4B141ED61923967cA25Ef4906C8781069a10", // SF Host on Polygon
-        "0xfc0FdB39aeA6B599990F050928e97903b10a550d", // Unlock Lock Factory Contract on Polygon
+        "0x3E14dC1b13c488a8d5D310918780c983bD5982E7", // SF Host on Polygon
+        "0xE8E5cd156f89F7bdB267EabD5C43Af3d5AF2A78f", // Unlock Lock Factory Contract on Polygon
         superAppFactory.address                       // Redirector Super App Factory
     );
 
     console.log("sfUnlockBundler:", sfUnlockBundler.address);
 
-    ////
+    //// Deploy keyPurchaseHook
+    let disablePurchaseHookDeployer = await ethers.getContractFactory("DisablePurchaseHook");
+    disablePurchaseHook = await disablePurchaseHookDeployer.connect(owner).deploy();
+
+    console.log("disablePurchaseHook:", disablePurchaseHook.address);
 
 });
 
 describe("Bundler Tests", async () => {
 
-    it("Calling ", async () => {
+    it("Calling bundleActions", async () => {
 
+        let bundleTx = await sfUnlockBundler.connect(owner).bundleActions(
+            1000,                                           // expirationDuration
+            "0xCAa7349CEA390F89641fe306D93591f87595dc1F",   // tokenAddress, USDCx 
+            0,
+            20,
+            "Test",
+            disablePurchaseHook.address
+        )
 
+        console.log(bundleTx);
 
     })
 
