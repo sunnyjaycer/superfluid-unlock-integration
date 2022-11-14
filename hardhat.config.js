@@ -27,6 +27,11 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 module.exports = {
   solidity: "0.8.13",
   networks: {
+    hardhat: {
+      forking: {
+        url: process.env.POLYGON_ALCHEMY_URL,
+      }
+    },
     ropsten: {
       url: process.env.ROPSTEN_URL || "",
       accounts:

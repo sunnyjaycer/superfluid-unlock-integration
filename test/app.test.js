@@ -229,7 +229,7 @@ describe("🚨 AppLogic - Reverts", function () {
         "app jailed - after reverting stream"
     );
   });
-  it("#2.2 - flows to small should revert", async () => {
+  it("#2.2 - flows too small should revert", async () => {
     const locker = await env.factories.locker.deploy();
     await locker.setState("10000000000000000", "10000000000000000000", env.tokens.daix.address);
     const { app } = await f.deployNewClone(env, locker.address);

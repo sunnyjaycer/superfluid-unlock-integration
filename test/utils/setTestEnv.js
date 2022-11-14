@@ -52,36 +52,61 @@ const deployTestEnv = async () => {
     ISuperfluid,
     accounts[0]
   );
+
+  // Helper deployers (unexported)
+
+  const _appDeployer = await ethers.getContractFactory(
+    "AppLogic",
+    accounts[0]
+  );
+
+  const _cloneFactory = await ethers.getContractFactory(
+    "CloneFactory",
+    accounts[0]
+  );
+
+  const _CFAV1Factory = await ethers.getContractFactory(
+    "MockCFAv1",
+    accounts[0]
+  );
+
+  const _hostFactory = await ethers.getContractFactory(
+    "HostMock", 
+    accounts[0]
+  );
+
+  // Get governance
+
   const governanceAddress = await host.getGovernance();
+
+  // Get Superfluid
+
   const superfluid = new ethers.Contract(
     governanceAddress,
     GovernanceABI,
     accounts[0]
   );
-  const _appDeployer = await ethers.getContractFactory(
-    "AppLogic",
-    accounts[0]
-  );
+
   const _appLogicImplementation = await _appDeployer.deploy();
-  const _cloneFactory = await ethers.getContractFactory(
-    "CloneFactory",
-    accounts[0]
-  );
+
+  // Deploying Factories
+
   const cloneFactory = await _cloneFactory.deploy(
     _appLogicImplementation.address,
     host.address,
   );
+
   const lockerFactory = await ethers.getContractFactory(
     "LockerMock",
     accounts[0]
   );
-  const _hostFactory = await ethers.getContractFactory("HostMock", accounts[0]);
+
+  // Deploying Mocks
+  
   const mockHost = await _hostFactory.deploy();
-  const _CFAV1Factory = await ethers.getContractFactory(
-    "MockCFAv1",
-    accounts[0]
-  );
+  
   const mockCFAv1 = await _CFAV1Factory.deploy();
+  
   await mockHost.setCFA1(mockCFAv1.address);
 
   const mockCloneFactory = await _cloneFactory.deploy(
@@ -89,10 +114,15 @@ const deployTestEnv = async () => {
       mockHost.address,
   );
 
+  // Giving Clone Factory permission to registerAppByFactory
+
   await superfluid.authorizeAppFactory(
     sf.settings.config.hostAddress,
     cloneFactory.address
   );
+
+
+  
   return {
     defaultDeployer: signer,
     accounts: accounts,
