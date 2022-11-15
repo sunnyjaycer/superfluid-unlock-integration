@@ -2,6 +2,7 @@
 pragma solidity 0.8.13;
 
 import { ILockKeyPurchaseHook } from "../interfaces/ILockKeyPurchaseHook.sol";
+import "hardhat/console.sol";
 
 contract DisablePurchaseHook is ILockKeyPurchaseHook {
 
@@ -31,6 +32,8 @@ contract DisablePurchaseHook is ILockKeyPurchaseHook {
         uint minKeyPrice,
         uint pricePaid
     ) external override {
+
+        console.log("HEYYYY IMMM HEEEERRRREEEE");
 
         revert("Purchases Disabled");
 

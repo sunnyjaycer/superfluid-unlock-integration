@@ -74,9 +74,4 @@ contract SFUnlockBundler {
 
     }
 
-    // function viewTest() external returns (uint256 one, uint256 two) {
-    //     one = 1;
-    //     two = 2;
-    // }
-
 }

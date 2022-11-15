@@ -1,11 +1,12 @@
 const { assert, expect } = require("chai");
 const { Framework } = require("@superfluid-finance/sdk-core");
+const hre = require("hardhat");
 const { ethers, web3 } = require("hardhat");
 const deployTestFramework = require("@superfluid-finance/ethereum-contracts/scripts/deploy-test-framework");
 const TestToken = require("@superfluid-finance/ethereum-contracts/build/contracts/TestToken.json");
 const { default: importType } = require("eslint-plugin-import/lib/core/importType");
 const superAppFactoryArtifact = require("../artifacts/contracts/CloneFactory.sol/CloneFactory.json");
-const lockArtifact = require("../artifacts/contracts/interfaces/IUnlock.sol/IUnlock.json");
+const lockArtifact = require("../artifacts/contracts/interfaces/IPublicLock.sol/IPublicLock.json");
 const superAppArtifact = require("../artifacts/contracts/AppLogic.sol/AppLogic.json");
 
 // Global Contract Vars
@@ -20,8 +21,8 @@ let deployedSuperApp;      // Lock Manager Super App that redirects streams to l
 let sfDeployer;
 let contractsFramework;
 let sf;
-let dai;
-let daix;
+let usdcAddress = "0xCAa7349CEA390F89641fe306D93591f87595dc1F";
+let usdcx;
 
 // Test Accounts
 let owner;
@@ -38,10 +39,17 @@ before(async function () {
     
     //// get hardhat accounts
 
-    [owner, account1, account2] = await ethers.getSigners();
-    console.log("Owner:", owner.address);
-    console.log("Acct1:", account1.address);
-    console.log("Acct2:", account2.address);
+    // [owner, account1, account2] = await ethers.getSigners();
+    // console.log("Owner:", owner.address);
+    // console.log("Acct1:", account1.address);
+    // console.log("Acct2:", account2.address);
+    await hre.network.provider.request({
+        method: "hardhat_impersonateAccount",
+        // account with lots of USDCx on Polygon
+        params: ["0xa852830defa900d655cb933c62474d3c85954fc5"]
+    });
+    owner = await ethers.getSigner("0xa852830defa900d655cb933c62474d3c85954fc5");
+
 
     //// Get superAppFactory
     superAppFactory = await ethers.getContractAt(
@@ -64,10 +72,22 @@ before(async function () {
     console.log("sfUnlockBundler:", sfUnlockBundler.address);
 
     //// Deploy keyPurchaseHook
+
     let disablePurchaseHookDeployer = await ethers.getContractFactory("DisablePurchaseHook");
     disablePurchaseHook = await disablePurchaseHookDeployer.connect(owner).deploy();
 
     console.log("disablePurchaseHook:", disablePurchaseHook.address);
+
+    //// Set up Superfluid
+
+    sf = await Framework.create({
+        provider: ethers.provider,  //   PROVIDER,  // ethers.getDefaultProvider(),
+        resolverAddress: "0xE0cc76334405EE8b39213E620587d815967af39C",
+        networkName: "hardhat",
+        dataMode: "WEB3_ONLY",
+        protocolReleaseVersion: "v1",
+        chainId: 31337
+    });
 
 });
 
@@ -93,12 +113,81 @@ describe("Bundler Tests", async () => {
         )
 
         deployedLock = await ethers.getContractAt(lockArtifact.abi, returnValues['0']);
+        console.log("deployedLock", deployedLock.address);
+
         deployedSuperApp = await ethers.getContractAt(superAppArtifact.abi, returnValues['1']);
+        console.log("deployedSuperApp", deployedSuperApp.address);
 
-        console.log("deployedLock:", deployedLock.address, '\n', "deployedSuperApp:", deployedSuperApp.address)
+    });
 
-    })
+    it("Should not be able to call purchase on deployedLock", async () => {
 
-    // 0xd0a9324abd6a31c1a6bb8db86da86c881361cddb
+//   /**
+//   * @dev Purchase function
+//   * @param _values array of tokens amount to pay for this purchase >= the current keyPrice - any applicable discount
+//   * (_values is ignored when using ETH)
+//   * @param _recipients array of addresses of the recipients of the purchased key
+//   * @param _referrers array of addresses of the users making the referral
+//   * @param _keyManagers optional array of addresses to grant managing rights to a specific address on creation
+//   * @param _data array of arbitrary data populated by the front-end which initiated the sale
+//   * @notice when called for an existing and non-expired key, the `_keyManager` param will be ignored 
+//   * @dev Setting _value to keyPrice exactly doubles as a security feature. That way if the lock owner increases the
+//   * price while my transaction is pending I can't be charged more than I expected (only applicable to ERC-20 when more
+//   * than keyPrice is approved for spending).
+//   * @return tokenIds the ids of the created tokens 
+//   */
+//    function purchase(
+//     uint256[] calldata _values,
+//     address[] calldata _recipients,
+//     address[] calldata _referrers,
+//     address[] calldata _keyManagers,
+//     bytes[] calldata _data
+
+        // TODO: not reverting for the right reason "Purchases Disabled" from DisablePurchaseHook
+        // await deployedLock.connect(owner).purchase(
+        //     [10],
+        //     [owner.address],
+        //     [owner.address],
+        //     [],
+        //     ["0x"]
+        // );
+
+    });
+
+    it("deployedSuperApp redirects stream", async () => {
+
+        let flowRate = "999"
+
+        let createFlowTx = sf.cfaV1.createFlow({
+            sender: owner.address,
+            receiver: deployedSuperApp.address,
+            superToken: usdcAddress,
+            flowRate: flowRate
+        });
+        await (await createFlowTx.exec(owner)).wait();
+
+        // Get flow to deployedSuperApp
+        let ownerToSuperApp = await sf.cfaV1.getFlow({
+            superToken: usdcAddress,
+            sender: owner.address,
+            receiver: deployedSuperApp.address,
+            providerOrSigner: owner
+        });          
+
+        // Get flow from deployedSuperApp to Lock
+        let superAppToLock = await sf.cfaV1.getFlow({
+            superToken: usdcAddress,
+            sender: deployedSuperApp.address,
+            receiver: deployedLock.address,
+            providerOrSigner: owner
+        });
+
+        expect(
+            ownerToSuperApp.flowRate == superAppToLock.flowRate,
+            "stream not redirected!"
+        );
+
+    });
+
 
 })
