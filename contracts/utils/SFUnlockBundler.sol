@@ -15,6 +15,8 @@ contract SFUnlockBundler {
     ISuperfluid public host;
     IUnlock public lockFactory;
     CloneFactory public superAppFactory;
+
+    event Bundle(address deployedLock, address deployedSuperApp);
     
     constructor(
         ISuperfluid _host,
@@ -35,8 +37,6 @@ contract SFUnlockBundler {
         address keyPurchaseHook
     ) external returns ( IPublicLock deployedLock, AppLogic deployedSuperApp ) {
 
-        console.log("here0");
-
         // Deploy Lock on Unlock Factory
         IPublicLock deployedLock = IPublicLock(lockFactory.createLock(
             expirationDuration,
@@ -46,8 +46,6 @@ contract SFUnlockBundler {
             lockName,
             ""
         ));
-
-        console.log("here1", address(deployedLock));
 
         // Register keyPurchaseHook to deployedLock
         IPublicLock(deployedLock).setEventHooks(
@@ -60,28 +58,25 @@ contract SFUnlockBundler {
             address(0)
         );
 
-        console.log("here2");
-
         // Deploy Stream Redirector Super App for deployedLock
         AppLogic deployedSuperApp = AppLogic(superAppFactory.deployNewApp(address(deployedLock)));
-
-        console.log("here3");
 
         // Make Super App the Lock Manager
         deployedLock.addLockManager(address(deployedSuperApp));
 
-        console.log("here4");
-
         // Give the creator the Lock Manager role as well
         deployedLock.addLockManager(msg.sender);
-
-        console.log("here5");
 
         // This deployer renounces its own manager role
         deployedLock.renounceLockManager();
 
-        console.log("here6");
+        emit Bundle(address(deployedLock), address(deployedSuperApp));
 
     }
+
+    // function viewTest() external returns (uint256 one, uint256 two) {
+    //     one = 1;
+    //     two = 2;
+    // }
 
 }
