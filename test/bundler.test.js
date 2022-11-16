@@ -118,6 +118,28 @@ describe("Bundler Tests", async () => {
 
     });
 
+    it("Permissions properly set", async () => {
+
+        // deployedSuperApp is Lock Manager
+        expect(
+            await deployedLock.isLockManager(deployedSuperApp.address) == true,
+            "deployedSuperApp was not made Lock Manager"
+        );
+        
+        // Bundler is not Lock Manager
+        expect(
+            await deployedLock.isLockManager(deployedSuperApp.address) == false,
+            "bundler is still Lock Manager"
+        );
+
+        // Owner is Lock Manager
+        expect(
+            await deployedLock.isLockManager(owner.address) == true,
+            "owner was not made Lock Manager"
+        );
+
+    })
+
     xit("Should not be able to call purchase on deployedLock", async () => {
 
 //   /**
