@@ -35,7 +35,9 @@ contract DisablePurchaseHook is ILockKeyPurchaseHook {
 
         console.log("HEYYYY IMMM HEEEERRRREEEE");
 
-        revert("Purchases Disabled");
+        // revert("Purchases Disabled");
+
+        require(false, "Purcahses Disabled");
 
     }
 

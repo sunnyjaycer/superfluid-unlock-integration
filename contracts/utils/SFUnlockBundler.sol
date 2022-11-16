@@ -16,6 +16,8 @@ contract SFUnlockBundler {
     IUnlock public lockFactory;
     CloneFactory public superAppFactory;
 
+    error TEST_ERROR();
+
     event Bundle(address deployedLock, address deployedSuperApp);
     
     constructor(

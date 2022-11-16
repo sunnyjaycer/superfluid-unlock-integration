@@ -18,22 +18,14 @@ let deployedSuperApp;      // Lock Manager Super App that redirects streams to l
                            // deployed by Bundler `bundleActions`
 
 // Superfluid Vars
-let sfDeployer;
-let contractsFramework;
 let sf;
-let usdcAddress = "0xCAa7349CEA390F89641fe306D93591f87595dc1F";
-let usdcx;
+let usdcxAddress = "0xCAa7349CEA390F89641fe306D93591f87595dc1F";
 
 // Test Accounts
 let owner;
 let account1;
 let account2;
 
-// Constants
-//for usage in IDA projects
-const expecationDiffLimit = 10; // sometimes the IDA distributes a little less wei than expected. Accounting for potential discrepency with 10 wei margin
-//useful for denominating large units of tokens when minting
-const thousandEther = ethers.utils.parseEther("10000");
 
 before(async function () {
     
@@ -98,10 +90,10 @@ describe("Bundler Tests", async () => {
         let bundleTx = await sfUnlockBundler.connect(owner).bundleActions(
             1000,                                           // expirationDuration
             "0xCAa7349CEA390F89641fe306D93591f87595dc1F",   // tokenAddress, USDCx 
-            0,
-            20,
-            "Test",
-            disablePurchaseHook.address
+            0,                                              // keyPrice
+            20,                                             // maxNumberOfKeys
+            "Test",                                         // lockName
+            disablePurchaseHook.address                     // keyPurchaseHook
         )
         let res = await bundleTx.wait()
 
@@ -118,9 +110,15 @@ describe("Bundler Tests", async () => {
         deployedSuperApp = await ethers.getContractAt(superAppArtifact.abi, returnValues['1']);
         console.log("deployedSuperApp", deployedSuperApp.address);
 
+        // expect that keyPurchaseHook was properly set
+        expect(
+            await deployedLock.onKeyPurchaseHook() == disablePurchaseHook.address,
+            "keyPurchaseHook not set properly in deployedLock"
+        );
+
     });
 
-    it("Should not be able to call purchase on deployedLock", async () => {
+    xit("Should not be able to call purchase on deployedLock", async () => {
 
 //   /**
 //   * @dev Purchase function
@@ -144,31 +142,36 @@ describe("Bundler Tests", async () => {
 //     bytes[] calldata _data
 
         // TODO: not reverting for the right reason "Purchases Disabled" from DisablePurchaseHook
-        // await deployedLock.connect(owner).purchase(
-        //     [10],
-        //     [owner.address],
-        //     [owner.address],
-        //     [],
-        //     ["0x"]
-        // );
+        // Hardhat is throwing "reverted without a reason string" - not triggering a custom error in purchase() function?
+        await deployedLock.connect(owner).purchase(
+            [10],
+            ["0xd964aB7E202Bab8Fbaa28d5cA2B2269A5497Cf68"],
+            [],
+            [],
+            ["0x"]
+        );
+
+        // - Notes -
+        // We're coding against v9 when v10 is coming out
+        // They should be more clear with their updates, implement minor versions (like v9.1)
 
     });
 
-    it("deployedSuperApp redirects stream", async () => {
+    it("deployedSuperApp redirects created stream", async () => {
 
         let flowRate = "999"
 
         let createFlowTx = sf.cfaV1.createFlow({
             sender: owner.address,
             receiver: deployedSuperApp.address,
-            superToken: usdcAddress,
+            superToken: usdcxAddress,
             flowRate: flowRate
         });
         await (await createFlowTx.exec(owner)).wait();
 
         // Get flow to deployedSuperApp
         let ownerToSuperApp = await sf.cfaV1.getFlow({
-            superToken: usdcAddress,
+            superToken: usdcxAddress,
             sender: owner.address,
             receiver: deployedSuperApp.address,
             providerOrSigner: owner
@@ -176,7 +179,7 @@ describe("Bundler Tests", async () => {
 
         // Get flow from deployedSuperApp to Lock
         let superAppToLock = await sf.cfaV1.getFlow({
-            superToken: usdcAddress,
+            superToken: usdcxAddress,
             sender: deployedSuperApp.address,
             receiver: deployedLock.address,
             providerOrSigner: owner
@@ -184,10 +187,67 @@ describe("Bundler Tests", async () => {
 
         expect(
             ownerToSuperApp.flowRate == superAppToLock.flowRate,
-            "stream not redirected!"
+            "streams not equal"
         );
 
     });
 
+    it("Key NFT was dispersed", async () => {
+
+        // expect owner to have a Key
+        expect(
+            await deployedLock.balanceOf(owner.address) == "1",
+            "Owner missing their key"
+        )
+
+    })
+
+    it("owner cancels stream", async () => {
+
+        // cancel stream
+        let deleteFlowTx = await sf.cfaV1.deleteFlow({
+            sender: owner.address,
+            receiver: deployedSuperApp.address,
+            superToken: usdcxAddress
+        });
+        await (await deleteFlowTx.exec(owner)).wait();
+
+        // Get flow to deployedSuperApp
+        let ownerToSuperApp = await sf.cfaV1.getFlow({
+            superToken: usdcxAddress,
+            sender: owner.address,
+            receiver: deployedSuperApp.address,
+            providerOrSigner: owner
+        });          
+
+        // Get flow from deployedSuperApp to Lock
+        let superAppToLock = await sf.cfaV1.getFlow({
+            superToken: usdcxAddress,
+            sender: deployedSuperApp.address,
+            receiver: deployedLock.address,
+            providerOrSigner: owner
+        });
+
+        expect(
+            superAppToLock.flowRate == 0,
+            "stream not zeroed from super app to lock"
+        );
+
+        expect(
+            ownerToSuperApp.flowRate == superAppToLock.flowRate,
+            "streams not equal"
+        );
+        
+    })
+
+    it("Key NFT was confiscated", async () => {
+
+        // expect owner to have a Key
+        expect(
+            await deployedLock.balanceOf(owner.address) == "0",
+            "Owner still has key"
+        )
+
+    })
 
 })
